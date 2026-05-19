@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="VpnNoteSystem.App/VpnNoteSystem.App.csproj" />
+  <Project Path="VpnNoteSystem.Tests/VpnNoteSystem.Tests.csproj" />
+</Solution>
