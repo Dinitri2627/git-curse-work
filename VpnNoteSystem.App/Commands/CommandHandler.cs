@@ -42,6 +42,7 @@ public class CommandHandler
                 "--register" => await HandleRegisterAsync(args),
                 "--login" => await HandleLoginAsync(args),
                 "--logout" => await HandleLogoutAsync(),
+                "--listusers" => await HandleListUsersAsync(),
                 "--addnewnote" => await HandleAddNoteAsync(args),
                 "--listnotes" => await HandleListNotesAsync(),
                 "--getnote" => await HandleGetNoteAsync(args),
@@ -108,6 +109,7 @@ public class CommandHandler
                     | `--register <username> <password>` | Регистрация нового пользователя | `--register user1 pass123` |
                     | `--login <username> <password>` | Вход в систему | `--login admin admin123` |
                     | `--logout` | Выход из системы | `--logout` |
+                    | `--listusers` | Список всех пользователей (только admin) | `--listusers` |
 
 ### Работа с заметками
 | Команда | Описание | Пример |
@@ -179,6 +181,26 @@ public class CommandHandler
     {
         await _authService.LogoutAsync();
         Console.WriteLine("  [OK] Выполнен выход из системы");
+        return true;
+    }
+
+    private async Task<bool> HandleListUsersAsync()
+    {
+        try
+        {
+            var users = await _authService.GetAllUsersAsync();
+            Console.WriteLine($"  Пользователи ({users.Count}):");
+            Console.WriteLine($"  {"ID",-4} {"Логин",-20} {"Роль",-10} {"Активен",-10} {"Создан",-20}");
+            Console.WriteLine("  " + new string('-', 64));
+            foreach (var u in users)
+            {
+                Console.WriteLine($"  {u.Id,-4} {u.Username,-20} {u.Role,-10} {(u.IsActive ? "Да" : "Нет"),-10} {u.CreatedAt:dd.MM.yyyy HH:mm}");
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.WriteLine($"  [ERROR] {ex.Message}");
+        }
         return true;
     }
 

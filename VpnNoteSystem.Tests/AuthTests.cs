@@ -172,6 +172,50 @@ public class AuthTests
     }
 
     [Fact]
+    public async Task GetAllUsersAsync_Admin_ReturnsAllUsers()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), Role = "admin", IsActive = true });
+        context.Users.Add(new User { Username = "user1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass1"), Role = "user", IsActive = true });
+        context.Users.Add(new User { Username = "user2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass2"), Role = "user", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("admin", "admin123");
+
+        var users = await authService.GetAllUsersAsync();
+
+        Assert.Equal(3, users.Count);
+    }
+
+    [Fact]
+    public async Task GetAllUsersAsync_NonAdmin_ThrowsException()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Username = "regular", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass"), Role = "user", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("regular", "pass");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => authService.GetAllUsersAsync());
+    }
+
+    [Fact]
+    public async Task GetAllUsersAsync_WithoutAuth_ThrowsException()
+    {
+        using var context = CreateContext();
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => authService.GetAllUsersAsync());
+    }
+
+    [Fact]
     public async Task RegisterAsync_ShortPassword_ReturnsError()
     {
         using var context = CreateContext();

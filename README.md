@@ -34,6 +34,7 @@ dotnet run --project VpnNoteSystem.App -- --help
 |---------|----------|
 | `--login <user> <pass>` | Вход в систему |
 | `--logout` | Выход |
+| `--listusers` | Список всех пользователей (admin) |
 | `--addNewNote "текст"` | Создать заметку |
 | `--listNotes` | Список заметок |
 | `--getNote <id>` | Просмотр заметки |

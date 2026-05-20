@@ -78,6 +78,17 @@ public class AuthService : IAuthService
         return Task.CompletedTask;
     }
 
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        if (_currentUser == null)
+            throw new UnauthorizedAccessException("Необходима аутентификация");
+
+        if (_currentUser.Role != "admin")
+            throw new UnauthorizedAccessException("Только администратор может просматривать список пользователей");
+
+        return await _context.Users.ToListAsync();
+    }
+
     public User? GetCurrentUser() => _currentUser;
     public bool IsAuthenticated => _currentUser != null;
 }
