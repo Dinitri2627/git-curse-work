@@ -107,7 +107,7 @@ public class CommandHandler
 | Команда | Описание | Пример |
 |---------|----------|--------|
                     | `--register <username> <password>` | Регистрация нового пользователя | `--register user1 pass123` |
-                    | `--login <username> <password>` | Вход в систему | `--login admin admin123` |
+                    | `--login <username> <password>` | Вход в систему | `--login user1 pass123` |
                     | `--logout` | Выход из системы | `--logout` |
                     | `--listusers` | Список всех пользователей (только admin) | `--listusers` |
 
