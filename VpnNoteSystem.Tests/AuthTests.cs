@@ -226,4 +226,90 @@ public class AuthTests
 
         Assert.False(success);
     }
+
+    [Fact]
+    public async Task CreateAdminAsync_Admin_ReturnsSuccess()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), Role = "admin", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("admin", "admin123");
+
+        var (success, message) = await authService.CreateAdminAsync("newadmin", "admin456");
+
+        Assert.True(success);
+        var saved = await context.Users.FirstOrDefaultAsync(u => u.Username == "newadmin");
+        Assert.NotNull(saved);
+        Assert.Equal("admin", saved!.Role);
+    }
+
+    [Fact]
+    public async Task CreateAdminAsync_NonAdmin_ThrowsException()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Username = "user1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass"), Role = "user", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("user1", "pass");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => authService.CreateAdminAsync("hacker", "pass123"));
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_Admin_DeactivatesUser()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Id = 1, Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), Role = "admin", IsActive = true });
+        context.Users.Add(new User { Id = 2, Username = "todelete", PasswordHash = "hash", Role = "user", IsActive = true });
+        context.Notes.Add(new Note { Id = 1, UserId = 2, Text = "note", DeviceName = "pc", CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("admin", "admin123");
+
+        var (success, message) = await authService.DeleteUserAsync(2);
+
+        Assert.True(success);
+        var deletedUser = await context.Users.FindAsync(2);
+        Assert.False(deletedUser!.IsActive);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_NonAdmin_ThrowsException()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Username = "user1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass"), Role = "user", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("user1", "pass");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => authService.DeleteUserAsync(999));
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_Self_ReturnsError()
+    {
+        using var context = CreateContext();
+        context.Users.Add(new User { Id = 1, Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), Role = "admin", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var authService = new AuthService(context, securityLogMock.Object);
+        await authService.LoginAsync("admin", "admin123");
+
+        var (success, message) = await authService.DeleteUserAsync(1);
+
+        Assert.False(success);
+        Assert.Contains("самого себя", message);
+    }
 }

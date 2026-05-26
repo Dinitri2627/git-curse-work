@@ -41,6 +41,8 @@ public class NoteService : INoteService
         return note;
     }
 
+    private bool IsAdmin => _authService.GetCurrentUser()?.Role == "admin";
+
     public async Task<List<Note>> GetAllNotesAsync()
     {
         var user = _authService.GetCurrentUser()
@@ -52,10 +54,27 @@ public class NoteService : INoteService
             .ToListAsync();
     }
 
+    public async Task<List<Note>> GetUserNotesAsync(int userId)
+    {
+        var user = _authService.GetCurrentUser()
+            ?? throw new UnauthorizedAccessException("Необходима аутентификация");
+
+        if (user.Role != "admin")
+            throw new UnauthorizedAccessException("Только администратор может просматривать заметки других пользователей");
+
+        return await _context.Notes
+            .Where(n => n.UserId == userId && !n.IsDeleted)
+            .OrderByDescending(n => n.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task<Note?> GetNoteByIdAsync(int id)
     {
         var user = _authService.GetCurrentUser()
             ?? throw new UnauthorizedAccessException("Необходима аутентификация");
+
+        if (IsAdmin)
+            return await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && !n.IsDeleted);
 
         return await _context.Notes
             .FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id && !n.IsDeleted);
@@ -66,8 +85,11 @@ public class NoteService : INoteService
         var user = _authService.GetCurrentUser()
             ?? throw new UnauthorizedAccessException("Необходима аутентификация");
 
-        var note = await _context.Notes
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id && !n.IsDeleted);
+        Note? note;
+        if (IsAdmin)
+            note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && !n.IsDeleted);
+        else
+            note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id && !n.IsDeleted);
 
         if (note == null) return false;
 

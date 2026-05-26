@@ -78,15 +78,72 @@ public class AuthService : IAuthService
         return Task.CompletedTask;
     }
 
-    public async Task<List<User>> GetAllUsersAsync()
+    private void RequireAdmin()
     {
         if (_currentUser == null)
             throw new UnauthorizedAccessException("Необходима аутентификация");
-
         if (_currentUser.Role != "admin")
-            throw new UnauthorizedAccessException("Только администратор может просматривать список пользователей");
+            throw new UnauthorizedAccessException("Только администратор может выполнить это действие");
+    }
 
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        RequireAdmin();
         return await _context.Users.ToListAsync();
+    }
+
+    public async Task<(bool Success, string Message)> DeleteUserAsync(int userId)
+    {
+        RequireAdmin();
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return (false, "Пользователь не найден");
+
+        if (user.Id == _currentUser!.Id)
+            return (false, "Нельзя удалить самого себя");
+
+        var notes = await _context.Notes.Where(n => n.UserId == userId).ToListAsync();
+        foreach (var note in notes)
+            note.IsDeleted = true;
+
+        user.IsActive = false;
+        await _context.SaveChangesAsync();
+
+        await _securityLog.LogAsync(_currentUser.Id, _currentUser.Username, "USER_DELETED",
+            $"Пользователь {user.Username} (ID={userId}) деактивирован", true);
+
+        return (true, $"Пользователь {user.Username} деактивирован");
+    }
+
+    public async Task<(bool Success, string Message)> CreateAdminAsync(string username, string password)
+    {
+        RequireAdmin();
+
+        if (string.IsNullOrWhiteSpace(username) || username.Length < 3)
+            return (false, "Имя пользователя должно быть от 3 символов");
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 4)
+            return (false, "Пароль должен быть от 4 символов");
+
+        var exists = await _context.Users.AnyAsync(u => u.Username == username);
+        if (exists)
+            return (false, "Пользователь с таким именем уже существует");
+
+        var admin = new User
+        {
+            Username = username,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Role = "admin",
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
+        };
+        _context.Users.Add(admin);
+        await _context.SaveChangesAsync();
+
+        await _securityLog.LogAsync(_currentUser!.Id, _currentUser.Username, "ADMIN_CREATED",
+            $"Создан новый администратор {username}", true);
+
+        return (true, $"Администратор {username} создан");
     }
 
     public User? GetCurrentUser() => _currentUser;

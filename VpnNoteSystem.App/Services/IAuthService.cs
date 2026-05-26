@@ -8,6 +8,8 @@ public interface IAuthService
     Task LogoutAsync();
     Task<(bool Success, string Message)> RegisterAsync(string username, string password);
     Task<List<User>> GetAllUsersAsync();
+    Task<(bool Success, string Message)> DeleteUserAsync(int userId);
+    Task<(bool Success, string Message)> CreateAdminAsync(string username, string password);
     User? GetCurrentUser();
     bool IsAuthenticated { get; }
 }

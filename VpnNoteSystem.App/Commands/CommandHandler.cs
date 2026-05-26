@@ -43,6 +43,9 @@ public class CommandHandler
                 "--login" => await HandleLoginAsync(args),
                 "--logout" => await HandleLogoutAsync(),
                 "--listusers" => await HandleListUsersAsync(),
+                "--createadmin" => await HandleCreateAdminAsync(args),
+                "--deleteuser" => await HandleDeleteUserAsync(args),
+                "--usernotes" => await HandleUserNotesAsync(args),
                 "--addnewnote" => await HandleAddNoteAsync(args),
                 "--listnotes" => await HandleListNotesAsync(),
                 "--getnote" => await HandleGetNoteAsync(args),
@@ -99,48 +102,52 @@ public class CommandHandler
     private void ShowDefaultHelp()
     {
         Console.WriteLine("""
-# VPN Note System - Справка
+╔══════════════════════════════════════════════════════════════╗
+║              VPN Note System — Справочное руководство       ║
+╚══════════════════════════════════════════════════════════════╝
 
-## Команды
+┌────────────────────────────────────────────────────────────┐
+│ АУТЕНТИФИКАЦИЯ                                            │
+├──────────────┬──────────────────────────┬─────────────────┤
+│ Команда      │ Описание                 │ Пример          │
+├──────────────┼──────────────────────────┼─────────────────┤
+│ --register   │ Регистрация              │ --register u p  │
+│ --login      │ Вход                     │ --login u p     │
+│ --logout     │ Выход                    │ --logout        │
+│ --listusers  │ Список пользователей *   │ --listusers     │
+│ --createadmin│ Создать администратора * │ --createadmin   │
+│              │                          │   admin2 pass   │
+│ --deleteuser │ Удалить пользователя *   │ --deleteuser 2  │
+└──────────────┴──────────────────────────┴─────────────────┘
+  * — только для администратора
 
-### Аутентификация
-| Команда | Описание | Пример |
-|---------|----------|--------|
-                    | `--register <username> <password>` | Регистрация нового пользователя | `--register user1 pass123` |
-                    | `--login <username> <password>` | Вход в систему | `--login user1 pass123` |
-                    | `--logout` | Выход из системы | `--logout` |
-                    | `--listusers` | Список всех пользователей (только admin) | `--listusers` |
+┌────────────────────────────────────────────────────────────┐
+│ ЗАМЕТКИ                                                    │
+├──────────────┬──────────────────────────┬─────────────────┤
+│ Команда      │ Описание                 │ Пример          │
+├──────────────┼──────────────────────────┼─────────────────┤
+│ --addnewnote │ Создать заметку          │ --addnewnote    │
+│              │                          │   "текст"       │
+│ --listnotes  │ Мои заметки              │ --listnotes     │
+│ --getnote    │ Просмотр заметки         │ --getnote 1     │
+│ --deletenote │ Удалить заметку          │ --deletenote 1  │
+│ --usernotes  │ Заметки пользователя *   │ --usernotes 2   │
+└──────────────┴──────────────────────────┴─────────────────┘
+  * — только для администратора
 
-### Работа с заметками
-| Команда | Описание | Пример |
-|---------|----------|--------|
-| `--addNewNote "текст заметки"` | Создать заметку | `--addNewNote "Настроить VPN"` |
-| `--listNotes` | Список заметок | `--listNotes` |
-| `--getNote <id>` | Просмотр заметки | `--getNote 1` |
-| `--deleteNote <id>` | Удалить заметку | `--deleteNote 1` |
+┌────────────────────────────────────────────────────────────┐
+│ СИСТЕМА И БЕЗОПАСНОСТЬ                                    │
+├──────────────┬──────────────────────────┬─────────────────┤
+│ Команда      │ Описание                 │ Пример          │
+├──────────────┼──────────────────────────┼─────────────────┤
+│ --stats      │ Статистика CPU/RAM/HDD   │ --stats         │
+│ --securitylogs│ Логи безопасности       │ --securitylogs  │
+│ --checkupdate│ Проверить обновления     │ --checkupdate   │
+│ --update     │ Установить обновление    │ --update        │
+└──────────────┴──────────────────────────┴─────────────────┘
 
-### Статистика системы
-| Команда | Описание | Пример |
-|---------|----------|--------|
-| `--stats` | Статистика CPU/RAM/HDD | `--stats` |
-
-### Логи безопасности
-| Команда | Описание | Пример |
-|---------|----------|--------|
-| `--securityLogs` | Просмотр логов | `--securityLogs` |
-
-### Обновления
-| Команда | Описание | Пример |
-|---------|----------|--------|
-| `--checkUpdate` | Проверить обновления | `--checkUpdate` |
-| `--update` | Установить обновление | `--update` |
-
-### Справка
-| Команда | Описание | Пример |
-|---------|----------|--------|
-| `--help` | Показать справку | `--help` |
-
----
+Справка: --help
+Выход:   exit
 """);
     }
 
@@ -195,6 +202,59 @@ public class CommandHandler
             foreach (var u in users)
             {
                 Console.WriteLine($"  {u.Id,-4} {u.Username,-20} {u.Role,-10} {(u.IsActive ? "Да" : "Нет"),-10} {u.CreatedAt:dd.MM.yyyy HH:mm}");
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.WriteLine($"  [ERROR] {ex.Message}");
+        }
+        return true;
+    }
+
+    private async Task<bool> HandleCreateAdminAsync(string[] args)
+    {
+        if (args.Length < 3)
+        {
+            Console.WriteLine("  Использование: --createadmin <username> <password>");
+            return true;
+        }
+        var (success, message) = await _authService.CreateAdminAsync(args[1], args[2]);
+        Console.WriteLine(success ? $"  [OK] {message}" : $"  [ERROR] {message}");
+        return true;
+    }
+
+    private async Task<bool> HandleDeleteUserAsync(string[] args)
+    {
+        if (args.Length < 2 || !int.TryParse(args[1], out var userId))
+        {
+            Console.WriteLine("  Использование: --deleteuser <id>");
+            return true;
+        }
+        var (success, message) = await _authService.DeleteUserAsync(userId);
+        Console.WriteLine(success ? $"  [OK] {message}" : $"  [ERROR] {message}");
+        return true;
+    }
+
+    private async Task<bool> HandleUserNotesAsync(string[] args)
+    {
+        if (args.Length < 2 || !int.TryParse(args[1], out var userId))
+        {
+            Console.WriteLine("  Использование: --usernotes <userId>");
+            return true;
+        }
+        try
+        {
+            var notes = await _noteService.GetUserNotesAsync(userId);
+            if (notes.Count == 0)
+            {
+                Console.WriteLine("  [INFO] У пользователя нет заметок");
+                return true;
+            }
+            Console.WriteLine($"  Заметки пользователя ID={userId} ({notes.Count}):");
+            foreach (var note in notes)
+            {
+                var preview = note.Text.Length > 60 ? note.Text[..60] + "..." : note.Text;
+                Console.WriteLine($"  [#{note.Id}] [{note.CreatedAt:dd.MM.yyyy HH:mm}] {preview}");
             }
         }
         catch (UnauthorizedAccessException ex)

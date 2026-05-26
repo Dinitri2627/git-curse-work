@@ -177,4 +177,67 @@ public class NoteTests
         Assert.Equal("Заметка пользователя 1", notes1[0].Text);
         Assert.Equal("Заметка пользователя 2", notes2[0].Text);
     }
+
+    [Fact]
+    public async Task AdminDeleteNote_DeletesAnyNote()
+    {
+        using var context = CreateContext();
+        var admin = new User { Id = 1, Username = "admin", PasswordHash = "h", Role = "admin", IsActive = true };
+        var user2 = new User { Id = 2, Username = "user2", PasswordHash = "h", IsActive = true };
+        context.Users.AddRange(admin, user2);
+        context.Notes.Add(new Note { Id = 10, UserId = 2, Text = "Чужая заметка", DeviceName = "pc", CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var authMock = new Mock<IAuthService>();
+        authMock.Setup(a => a.GetCurrentUser()).Returns(admin);
+        authMock.Setup(a => a.IsAuthenticated).Returns(true);
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var noteService = new NoteService(context, authMock.Object, securityLogMock.Object);
+
+        var result = await noteService.DeleteNoteAsync(10);
+
+        Assert.True(result);
+        var deleted = await context.Notes.FindAsync(10);
+        Assert.True(deleted!.IsDeleted);
+    }
+
+    [Fact]
+    public async Task GetUserNotesAsync_Admin_ReturnsNotes()
+    {
+        using var context = CreateContext();
+        var admin = new User { Id = 1, Username = "admin", Role = "admin", IsActive = true };
+        var user2 = new User { Id = 2, Username = "user2", IsActive = true };
+        context.Users.AddRange(admin, user2);
+        context.Notes.Add(new Note { Id = 1, UserId = 2, Text = "Note 1", DeviceName = "pc", CreatedAt = DateTime.UtcNow });
+        context.Notes.Add(new Note { Id = 2, UserId = 2, Text = "Note 2", DeviceName = "pc", CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var authMock = new Mock<IAuthService>();
+        authMock.Setup(a => a.GetCurrentUser()).Returns(admin);
+        authMock.Setup(a => a.IsAuthenticated).Returns(true);
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var noteService = new NoteService(context, authMock.Object, securityLogMock.Object);
+
+        var notes = await noteService.GetUserNotesAsync(2);
+
+        Assert.Equal(2, notes.Count);
+    }
+
+    [Fact]
+    public async Task GetUserNotesAsync_NonAdmin_Throws()
+    {
+        using var context = CreateContext();
+        var user = new User { Id = 1, Username = "user1", IsActive = true };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authMock = new Mock<IAuthService>();
+        authMock.Setup(a => a.GetCurrentUser()).Returns(user);
+        authMock.Setup(a => a.IsAuthenticated).Returns(true);
+        var securityLogMock = new Mock<ISecurityLogService>();
+        var noteService = new NoteService(context, authMock.Object, securityLogMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => noteService.GetUserNotesAsync(2));
+    }
 }
