@@ -80,6 +80,30 @@ public class NoteService : INoteService
             .FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id && !n.IsDeleted);
     }
 
+    public async Task<(bool Success, string Message)> UpdateNoteAsync(int id, string newText)
+    {
+        var user = _authService.GetCurrentUser()
+            ?? throw new UnauthorizedAccessException("Необходима аутентификация");
+
+        Note? note;
+        if (IsAdmin)
+            note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && !n.IsDeleted);
+        else
+            note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id && !n.IsDeleted);
+
+        if (note == null)
+            return (false, "Заметка не найдена");
+
+        note.Text = newText.Replace("\0", "");
+        note.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        await _securityLog.LogAsync(user.Id, user.Username, "NOTE_UPDATED",
+            $"Обновлена заметка #{id}", true);
+
+        return (true, $"Заметка #{id} обновлена");
+    }
+
     public async Task<bool> DeleteNoteAsync(int id)
     {
         var user = _authService.GetCurrentUser()

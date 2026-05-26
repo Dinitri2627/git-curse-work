@@ -93,7 +93,7 @@ static async Task RunInteractiveMode(CommandHandler handler)
         }
 
         var parts = SplitArgs(input);
-        await handler.HandleAsync(parts);
+        await handler.HandleAsync(parts, input);
         Console.WriteLine();
     }
 }

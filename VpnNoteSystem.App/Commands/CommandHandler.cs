@@ -24,7 +24,7 @@ public class CommandHandler
         _securityLog = securityLog;
     }
 
-    public async Task<bool> HandleAsync(string[] args)
+    public async Task<bool> HandleAsync(string[] args, string? rawInput = null)
     {
         if (args.Length == 0)
         {
@@ -46,9 +46,10 @@ public class CommandHandler
                 "--createadmin" => await HandleCreateAdminAsync(args),
                 "--deleteuser" => await HandleDeleteUserAsync(args),
                 "--usernotes" => await HandleUserNotesAsync(args),
-                "--addnewnote" => await HandleAddNoteAsync(args),
+                "--addnewnote" => await HandleAddNoteAsync(args, rawInput),
                 "--listnotes" => await HandleListNotesAsync(),
                 "--getnote" => await HandleGetNoteAsync(args),
+                "--editnote" => await HandleEditNoteAsync(args, rawInput),
                 "--deletenote" => await HandleDeleteNoteAsync(args),
                 "--stats" => await HandleStatsAsync(),
                 "--securitylogs" => await HandleSecurityLogsAsync(),
@@ -126,10 +127,16 @@ public class CommandHandler
 ├──────────────┬──────────────────────────┬─────────────────┤
 │ Команда      │ Описание                 │ Пример          │
 ├──────────────┼──────────────────────────┼─────────────────┤
-│ --addnewnote │ Создать заметку          │ --addnewnote    │
+ │ --addnewnote │ Создать заметку          │ --addnewnote    │
 │              │                          │   "текст"       │
-│ --listnotes  │ Мои заметки              │ --listnotes     │
+│              │                          │ (кавычки     │
+│              │                          │  обязательны)   │
+ │ --listnotes  │ Мои заметки              │ --listnotes     │
 │ --getnote    │ Просмотр заметки         │ --getnote 1     │
+│ --editnote   │ Редактировать заметку    │ --editnote 1    │
+│              │                          │   "новый текст" │
+│              │                          │ (кавычки       │
+│              │                          │  обязательны)   │
 │ --deletenote │ Удалить заметку          │ --deletenote 1  │
 │ --usernotes  │ Заметки пользователя *   │ --usernotes 2   │
 └──────────────┴──────────────────────────┴─────────────────┘
@@ -264,7 +271,7 @@ public class CommandHandler
         return true;
     }
 
-    private async Task<bool> HandleAddNoteAsync(string[] args)
+    private async Task<bool> HandleAddNoteAsync(string[] args, string? rawInput = null)
     {
         if (!_authService.IsAuthenticated)
         {
@@ -272,10 +279,33 @@ public class CommandHandler
             return true;
         }
 
-        var text = string.Join(" ", args.Skip(1));
+        string? text = null;
+
+        if (rawInput != null)
+        {
+            var idx = rawInput.IndexOf("--addnewnote", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var afterCmd = rawInput[(idx + "--addnewnote".Length)..].Trim();
+                if (afterCmd.StartsWith('"') && afterCmd.EndsWith('"'))
+                {
+                    text = afterCmd[1..^1];
+                }
+            }
+        }
+
+        if (text == null)
+        {
+            var joined = string.Join(" ", args.Skip(1));
+            if (joined.StartsWith('"') && joined.EndsWith('"'))
+            {
+                text = joined[1..^1];
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(text))
         {
-            Console.WriteLine("  Использование: --addNewNote \"текст заметки\"");
+            Console.WriteLine("  [ERROR] Текст заметки должен быть в кавычках. Пример: --addnewnote \"текст заметки\"");
             return true;
         }
 
@@ -335,6 +365,53 @@ public class CommandHandler
         Console.WriteLine($"  Дата: {note.CreatedAt:dd.MM.yyyy HH:mm}");
         Console.WriteLine($"  Устройство: {note.DeviceName}");
         Console.WriteLine($"  Текст: {note.Text}");
+        return true;
+    }
+
+    private async Task<bool> HandleEditNoteAsync(string[] args, string? rawInput = null)
+    {
+        if (!_authService.IsAuthenticated)
+        {
+            Console.WriteLine("  [ERROR] Необходима аутентификация. Используйте --login");
+            return true;
+        }
+
+        if (args.Length < 2 || !int.TryParse(args[1], out var id))
+        {
+            Console.WriteLine("  Использование: --editnote <id> \"новый текст\"");
+            return true;
+        }
+
+        string? text = null;
+
+        if (rawInput != null)
+        {
+            var afterCmd = rawInput[(rawInput.IndexOf("--editnote", StringComparison.OrdinalIgnoreCase) + "--editnote".Length)..].Trim();
+            var idEnd = afterCmd.IndexOf(' ');
+            var possibleText = idEnd >= 0 ? afterCmd[(idEnd + 1)..].Trim() : "";
+            if (possibleText.StartsWith('"') && possibleText.EndsWith('"'))
+            {
+                text = possibleText[1..^1];
+            }
+        }
+
+        if (text == null)
+        {
+            var joined = string.Join(" ", args.Skip(2));
+            if (joined.StartsWith('"') && joined.EndsWith('"'))
+            {
+                text = joined[1..^1];
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Console.WriteLine("  [ERROR] Текст заметки должен быть в кавычках. Пример: --editnote 1 \"новый текст\"");
+            return true;
+        }
+
+        var (success, message) = await _noteService.UpdateNoteAsync(id, text);
+        Console.WriteLine(success ? $"  [OK] {message}" : $"  [ERROR] {message}");
         return true;
     }
 

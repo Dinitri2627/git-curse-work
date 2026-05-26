@@ -30,6 +30,7 @@
 | `--addnewnote "текст"` | Создать заметку | `--addnewnote "Настроить VPN-шлюз"` |
 | `--listnotes` | Список моих заметок | `--listnotes` |
 | `--getnote <id>` | Просмотр заметки | `--getnote 1` |
+| `--editnote <id> "текст"` | Редактировать заметку | `--editnote 1 "Новый текст"` |
 | `--deletenote <id>` | Удалить заметку | `--deletenote 1` |
 
 ---
